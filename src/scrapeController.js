@@ -8,6 +8,7 @@ function scrapeController() {
 async function browserInstance() {
     let browsr = await puppeteer.launch({
         headless: false,
+        devtools: true,
         // args: ["--disable-setuid-sandbox"],
         // 'ignoreHTTPSErrors': true,
         args: [
@@ -32,28 +33,46 @@ scrapeController.prototype.scrapeAll = async function (url) {
     try {
         //Start the instance of the browser
         let page = await configureBrowser(url);
-        //Waiting for the page to load before scraping
-        await page.waitForSelector('.exclusives__rows-row'); 
         //get the selected elements
-        this.scrapePage(page);
+        let contentArr = this.scrapePage(page);
+        this.fetchNewsUrl(contentArr, page);
     } catch (err) {
         console.log('Could not resolve the browser instance:', err)
     }
 }
 
+//Fetch news real url on the url basis
+scrapeController.prototype.fetchNewsUrl = async function(content = [], page) {
+
+}
+
+async function getContent(page) {
+    //Waiting for the page to load before scraping
+    await page.waitForSelector('.exclusives__rows-row'); 
+    console.log('New page load finish...')
+    return page.evaluate(_ => [...document.querySelectorAll('.exclusives__rows-row')].map(value => {
+        let result = {
+            url: value.querySelector('.exclusives__rows-row-title').href,
+            date: value.querySelector('.author__label').innerText,
+        };
+        // value.parentNode.removeChild(value);
+        value.remove();
+        return result;
+    }));
+}
+
 //scrape the page elements
 scrapeController.prototype.scrapePage = async function (page) {
-    let html;
+    let html = []; //result default 
+    let pagesToScrape = 3; //limit to scrape through pages
     try {
-        //looping through the page to find the selected elements
-        html = await page.evaluate(_ => [...document.querySelectorAll('.exclusives__rows-row')].map(value => {
-            let result = {
-                url: value.querySelector('.exclusives__rows-row-title').href,
-                date: value.querySelector('.author__label').innerText,
-            };
-            value.parentNode.removeChild(value);
-            return result;
-        })); 
+        //Looping through different pages
+        for(var i = 0; i <= pagesToScrape; i++) {
+            //looping through the page to find the selected elements
+            html = [...await getContent(page), ...html];
+            console.log('clicking on button to load news items...', i++)
+            await page.click(".pager__item a");
+        }
         //return links
         return html;
     } catch (err) {
