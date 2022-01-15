@@ -1,14 +1,12 @@
 const scrape = document.getElementById("scrape");
 const url = document.getElementById("url");
+const date = document.getElementById("date-limit");
 
 scrape.addEventListener("click", async(e) => {
-  e.preventDefault();
-  const response = await fetch("/scrape?url=" + url.value);
-  //resolve a promise
-  const data = await response.json();
-  console.log('data', data);
-
-//   document.querySelector("#image").setAttribute("src", data.image);
-//   document.querySelector("#price").innerText = data.price;
-//   document.querySelector("#product").innerText = data.product;
+  e.preventDefault(); 
+  const response = await fetch(`/scrape?url= ${url.value}&date=${date.value}`);
+  //resolve a promise  
+  if (response.status == 200 ) {
+    window.open('/download', '_blank');
+  }
 });

@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer');
 
-function scrapeController() { 
+function scrapeController() {
     //Contructor
 }
 
@@ -14,7 +14,7 @@ async function browserInstance() {
         args: [
             '--no-sandbox',
             '--disable-dev-shm-usage', // <-- add this one
-            ],
+        ],
     });
     return browsr;
 }
@@ -22,59 +22,125 @@ async function browserInstance() {
 //Configure the browser
 async function configureBrowser(url) {
     let browser;
-    browser = await browserInstance(); 
+    browser = await browserInstance();
     const page = await browser.newPage();
-    await page.goto(url,{ waitUntil: "load", timeout: 0 });
+    await page.goto(url, { waitUntil: "load", timeout: 0 });
     return page;
 }
- 
+
 //start process of scraping
-scrapeController.prototype.scrapeAll = async function (url) {     
+scrapeController.prototype.scrapeAll = async function (req, res) {
     try {
+        this.url = req.query.url;
+        this.date = req.query.date; 
         //Start the instance of the browser
-        let page = await configureBrowser(url);
+        let page = await configureBrowser(this.url);
         //get the selected elements
-        let contentArr = this.scrapePage(page);
-        this.fetchNewsUrl(contentArr, page);
+        let contentArr = await this.scrapePage(page); 
+        contentArr = await this.fetchNewsUrl(contentArr, page);
+        this.exportNewsToFile(contentArr, res);  
     } catch (err) {
         console.log('Could not resolve the browser instance:', err)
     }
 }
 
-//Fetch news real url on the url basis
-scrapeController.prototype.fetchNewsUrl = async function(content = [], page) {
+scrapeController.prototype.exportNewsToFile = function (content, res) {
+    console.log('Exporting news date to file...');
+    //Exporting to file
+    let fs = require('fs');
+    let json = JSON.stringify(content);
+    let writeStream = fs.createWriteStream('./public/news.csv');
+    writeStream.write(`URL, AUTHOR \n`);
+    content.forEach(news => {
+        writeStream.write(`${news.url},${news.date}\n`);
+    })
+    writeStream.end();
 
+    writeStream.on('finish', () => { 
+        console.log('File written successfully.');
+    }).on('error', (err) => {
+        console.log(err)
+        return "";
+    })
+}
+
+//Fetch news real url on the url basis
+scrapeController.prototype.fetchNewsUrl = async function (content = [], page) {
+    try {
+        //Looping through the selected elements
+        for (let i = 0; i < content.length; i++) {
+            //Getting the news url
+            let url = content[i].url;
+            //Opening the news url
+            await page.goto(url, { waitUntil: "load", timeout: 0 });
+            //Getting the news content
+            let newsContent = await scrapeNewsPage(page, url);
+            //Saving the news content
+            content[i].url = newsContent;
+        }
+        return content;
+    } catch (err) {
+        console.log('Could not resolve the browser instance:', err)
+    }
+}
+
+async function scrapeNewsPage(page, url = "") {
+    console.log('Going through news page..')
+    try {
+        //Waiting for the page to check selector
+        if (await page.$('.news-ct__source-link') !== null) return page.$$eval('.news-ct__source-link a', (links) => links[0].href);
+        throw Error('not valid')
+    } catch (err) {
+        console.log('not gettng url:', err)
+        return url;
+    }
 }
 
 async function getContent(page) {
     //Waiting for the page to load before scraping
-    await page.waitForSelector('.exclusives__rows-row'); 
-    console.log('New page load finish...')
+    await page.waitForSelector('.exclusives__rows-row');
+    console.log('New page load finish...');
     return page.evaluate(_ => [...document.querySelectorAll('.exclusives__rows-row')].map(value => {
         let result = {
             url: value.querySelector('.exclusives__rows-row-title').href,
             date: value.querySelector('.author__label').innerText,
         };
-        // value.parentNode.removeChild(value);
+        //removing the content to clear space on tab
         value.remove();
         return result;
     }));
 }
 
+//check if news date has reached limit
+function checkIfOverLimit(url, data) {
+    let date = new Date(data.targetDate); 
+    let dateArr = url.replace(`${data.origin.trim()}/`, '').split('/'); 
+    if ( new Date(`${dateArr[0]}-${dateArr[1]}-01`) === "Invalid Date"  ) {
+        return true;
+    }
+    return new Date(`${dateArr[0]}-${dateArr[1]}-01`) > date;
+}
+
 //scrape the page elements
-scrapeController.prototype.scrapePage = async function (page) {
-    let html = []; //result default 
-    let pagesToScrape = 3; //limit to scrape through pages
-    try {
+scrapeController.prototype.scrapePage = async function (page, html = []) {
+    try { 
         //Looping through different pages
-        for(var i = 0; i <= pagesToScrape; i++) {
-            //looping through the page to find the selected elements
-            html = [...await getContent(page), ...html];
-            console.log('clicking on button to load news items...', i++)
-            await page.click(".pager__item a");
+        let result = await getContent(page);
+        let next = false; 
+        for(var i = 0; i < result.length; i++) { 
+            if (await checkIfOverLimit(
+                result[i].url, 
+                {
+                    origin: this.url,
+                    targetDate: this.date
+                })) {
+                next = true;
+                break;
+            }
         }
-        //return links
-        return html;
+        console.log('clicking on button to load news items.');
+        await page.click(".pager__item a");
+        return next ? this.scrapePage(page, [...html, ...result]) : [...html, ...result];
     } catch (err) {
         //Handle errors
         console.log('Could not evaluate page:', err)
