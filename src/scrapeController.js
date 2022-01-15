@@ -27,7 +27,7 @@ async function configureBrowser(url) {
     await page.goto(url,{ waitUntil: "load", timeout: 0 });
     return page;
 }
-
+ 
 //start process of scraping
 scrapeController.prototype.scrapeAll = async function (url) {     
     try {
