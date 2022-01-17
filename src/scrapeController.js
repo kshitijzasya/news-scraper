@@ -8,7 +8,8 @@ function scrapeController() {
 async function browserInstance() {
     let browsr = await puppeteer.launch({
         headless: false,
-        devtools: true,
+        ignoreDefaultArgs: ['--disable-extensions'],
+        // devtools: true,
         // args: ["--disable-setuid-sandbox"],
         // 'ignoreHTTPSErrors': true,
         args: [
