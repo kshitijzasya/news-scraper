@@ -10,7 +10,7 @@ scrape.addEventListener("click", async(e) => {
   if (url.value.length && date.value.length) {
     const response = await fetch(`/scrape?url= ${url.value}&date=${date.value}`);
   //resolve a promise  
-  if (response.status == 200 ) {
+  if (response.status == 200 || response.status == 304) {
     window.open('/download', '_blank');
   }
   } else {

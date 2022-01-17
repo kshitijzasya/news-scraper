@@ -7,7 +7,7 @@ function scrapeController() {
 //Creating instance of the browser
 async function browserInstance() {
     let browsr = await puppeteer.launch({
-        headless: false,
+        headless: true,
         ignoreDefaultArgs: ['--disable-extensions'],
         // devtools: true,
         // args: ["--disable-setuid-sandbox"],
